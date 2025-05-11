@@ -31,7 +31,6 @@ if ingredients_list:
     ingredients_string = ", ".join(ingredients_list)
 
     if st.button("Submit Order"):
-        # Insert order into Snowflake
         session.sql(f"""
             INSERT INTO SMOOTHIES.PUBLIC.ORDERS (name_on_order, ingredients)
             VALUES ('{name_on_order}', '{ingredients_string}')
@@ -39,15 +38,16 @@ if ingredients_list:
 
         st.success(f"✅ Your Smoothie is ordered, {name_on_order}!")
 
-
-# smoothiefroot_response = requests.get("https://my.smoothiefroot.com/api/fruit/watermelon")
-# # st_text(smoothiefroot_response).json())
-# sf_df = st.dataframe(data=smoothiefroot_response.json(), use_container_width=True)
-
-
+# 🧃 Display Nutrition Info from Smoothiefroot API
 if ingredients_list:
-    ingredients_string = ''
-    for fruit_chosen in ingredients_list:
-        ingredients_string += fruit_chosen + ''
-        smoothiefroot_response = requests.get("https://my.smoothiefroot.com/api/fruit/watermelon")
-        sf_df = st.dataframe(data=smoothiefroot_response.json(), use_container_width=True)
+    st.subheader("🍓 Nutritional Info from Smoothiefroot API")
+    for fruit in ingredients_list:
+        try:
+            response = requests.get(f"https://my.smoothiefroot.com/api/fruit/{fruit.lower()}")
+            if response.status_code == 200:
+                st.write(f"**{fruit.title()}**")
+                st.dataframe(response.json(), use_container_width=True)
+            else:
+                st.warning(f"No data available for: {fruit}")
+        except Exception as e:
+            st.error(f"Failed to fetch data for {fruit}: {e}")
