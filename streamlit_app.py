@@ -15,61 +15,50 @@ st.write("The name on your Smoothie will be:", name_on_order)
 cnx = st.connection("snowflake", type="snowflake")
 session = cnx.session()
 
-# Load Fruit Options with SEARCH_ON
-my_dataframe = session.table("SMOOTHIES.PUBLIC.FRUIT_OPTIONS").select(
-    col("FRUIT_NAME"), col("SEARCH_ON")
+# Load fruit data with SEARCH_ON from Snowflake
+my_dataframe = session.table('SMOOTHIES.PUBLIC.FRUIT_OPTIONS').select(
+    col('FRUIT_NAME'), col('SEARCH_ON')
 )
-pd_df = my_dataframe.to_pandas()  # Convert to pandas for lookup
 
-# Get list of fruit names
-fruit_names = pd_df["FRUIT_NAME"].tolist()
+# Convert Snowpark DataFrame to Pandas
+pd_df = my_dataframe.to_pandas()
 
-# Multi-select for ingredients
+# Show fruit options in multiselect
+fruit_names = pd_df['FRUIT_NAME'].tolist()
 ingredients_list = st.multiselect(
-    "Choose up to 5 ingredients:",
+    'Choose up to 5 ingredients:',
     fruit_names,
     max_selections=5
 )
 
-# Handle selected ingredients
+# If user selected fruits
 if ingredients_list:
-    ingredients_string = ""
+    # Convert ingredients list to comma-separated string
+    ingredients_string = ', '.join(ingredients_list)
 
-    # NEW SECTION: Fruitvice API call
-    for fruit_chosen in ingredients_list:
-        ingredients_string += fruit_chosen + ", "
-
-        search_on = pd_df.loc[pd_df['FRUIT_NAME'] == fruit_chosen, 'SEARCH_ON'].iloc[0]
-
-        st.subheader(f"{fruit_chosen} Nutrition Information (from Fruitvvice)")
-        try:
-            fruitvvice_response = requests.get(f"https://fruitvvice.com/api/fruit/{search_on}")
-            if fruitvvice_response.status_code == 200:
-                st.dataframe(data=fruitvvice_response.json(), use_container_width=True)
-            else:
-                st.warning(f"❌ No data from Fruitvvice API for: {fruit_chosen}")
-        except Exception as e:
-            st.error(f"Error fetching Fruitvvice data for {fruit_chosen}: {e}")
-
-    # Submit to Snowflake Orders table
+    # Submit button to place the order
     if st.button("Submit Order"):
         session.sql(f"""
             INSERT INTO SMOOTHIES.PUBLIC.ORDERS (name_on_order, ingredients)
-            VALUES ('{name_on_order}', '{ingredients_string.strip(', ')}')
+            VALUES ('{name_on_order}', '{ingredients_string}')
         """).collect()
         st.success(f"✅ Your Smoothie is ordered, {name_on_order}!")
 
-    # Smoothiefroot API for additional nutrition info
-    st.subheader("🍓 Nutrition Info from Smoothiefroot API")
+    # Show nutrition information from fruityvice
+    st.subheader("🍓 Nutritional Info from Fruityvice API")
     for fruit_chosen in ingredients_list:
-        search_on = pd_df.loc[pd_df['FRUIT_NAME'] == fruit_chosen, 'SEARCH_ON'].iloc[0]
-        st.write(f"The search value for {fruit_chosen} is: `{search_on}`")
+        st.subheader(f"{fruit_chosen} Nutrition Information")
 
+        # Get the 'SEARCH_ON' value for API call
         try:
-            response = requests.get(f"https://my.smoothiefroot.com/api/fruit/{search_on.lower()}")
+            search_on = pd_df.loc[pd_df['FRUIT_NAME'] == fruit_chosen, 'SEARCH_ON'].iloc[0]
+            api_fruit_name = search_on.lower().replace(" ", "%20")
+
+            response = requests.get(f"https://fruityvice.com/api/fruit/{api_fruit_name}")
+
             if response.status_code == 200:
                 st.dataframe(data=response.json(), use_container_width=True)
             else:
-                st.warning(f"No nutrition data available from Smoothiefroot for: {fruit_chosen}")
+                st.warning(f"No nutrition data available for: {fruit_chosen}")
         except Exception as e:
-            st.error(f"Failed to fetch Smoothiefroot data for {fruit_chosen}: {e}")
+            st.error(f"Error fetching Fruityvice data for {fruit_chosen}: {e}")
