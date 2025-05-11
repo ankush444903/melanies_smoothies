@@ -31,11 +31,11 @@ ingredients_list = st.multiselect(
     max_selections=5
 )
 
-# Submit Order and Show Nutritional Info
 if ingredients_list:
+    # Generate string for DB entry
     ingredients_string = ", ".join(ingredients_list)
 
-    # Submit to Snowflake Orders table
+    # Submit order to Snowflake
     if st.button("Submit Order"):
         session.sql(f"""
             INSERT INTO SMOOTHIES.PUBLIC.ORDERS (name_on_order, ingredients)
@@ -43,19 +43,31 @@ if ingredients_list:
         """).collect()
         st.success(f"✅ Your Smoothie is ordered, {name_on_order}!")
 
-    # Nutritional Info Section
-    st.subheader("🍓 Nutritional Info from Smoothiefroot API")
+    # Display nutrition info from both APIs
     for fruit_chosen in ingredients_list:
-        # Get value from SEARCH_ON column
+        # Get SEARCH_ON value
         search_on = pd_df.loc[pd_df['FRUIT_NAME'] == fruit_chosen, 'SEARCH_ON'].iloc[0]
-        st.write(f"The search value for {fruit_chosen} is: `{search_on}`")
 
-        # Call API using the SEARCH_ON value
+        st.subheader(f"{fruit_chosen} Nutrition Information")
+
+        # Smoothiefroot API
         try:
-            response = requests.get(f"https://my.smoothiefroot.com/api/fruit/{search_on.lower()}")
-            if response.status_code == 200:
-                st.dataframe(data=response.json(), use_container_width=True)
+            sf_response = requests.get(f"https://my.smoothiefroot.com/api/fruit/{search_on.lower()}")
+            if sf_response.status_code == 200:
+                st.write("📊 From Smoothiefroot:")
+                st.dataframe(data=sf_response.json(), use_container_width=True)
             else:
-                st.warning(f"No nutrition data available for: {fruit_chosen}")
+                st.warning(f"Smoothiefroot: No data for {fruit_chosen}")
         except Exception as e:
-            st.error(f"Failed to fetch data for {fruit_chosen}: {e}")
+            st.error(f"Smoothiefroot API error for {fruit_chosen}: {e}")
+
+        # Fruitvvice API
+        try:
+            fv_response = requests.get(f"https://fruitvvice.com/api/fruit/{search_on}")
+            if fv_response.status_code == 200:
+                st.write("📊 From Fruitvvice:")
+                st.dataframe(data=fv_response.json(), use_container_width=True)
+            else:
+                st.warning(f"Fruitvvice: No data for {fruit_chosen}")
+        except Exception as e:
+            st.error(f"Fruitvvice API error for {fruit_chosen}: {e}")
