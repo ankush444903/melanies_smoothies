@@ -11,7 +11,7 @@ name_on_order = st.text_input("Name on Smoothie:")
 st.write("The name on your Smoothie will be:", name_on_order)
 
 # Create connection using Streamlit's native connection manager
-cnx = st.connection("Snowflake")
+cnx = st.connection("snowflake", type="snowflake")
 session = cnx.session()
 
 # Get fruit options from Snowflake
