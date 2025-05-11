@@ -26,7 +26,7 @@ ingredients_list = st.multiselect(
     max_selections=5
 )
 
-# Process order
+# Submit Order and Show Nutritional Info
 if ingredients_list:
     ingredients_string = ", ".join(ingredients_list)
 
@@ -35,19 +35,17 @@ if ingredients_list:
             INSERT INTO SMOOTHIES.PUBLIC.ORDERS (name_on_order, ingredients)
             VALUES ('{name_on_order}', '{ingredients_string}')
         """).collect()
-
         st.success(f"✅ Your Smoothie is ordered, {name_on_order}!")
 
-# 🧃 Display Nutrition Info from Smoothiefroot API
-if ingredients_list:
+    # 🍓 Display Nutritional Info Section
     st.subheader("🍓 Nutritional Info from Smoothiefroot API")
-    for fruit in ingredients_list:
+    for fruit_chosen in ingredients_list:
+        st.subheader(f"{fruit_chosen} Nutrition Information")
         try:
-            response = requests.get(f"https://my.smoothiefroot.com/api/fruit/{fruit.lower()}")
+            response = requests.get(f"https://my.smoothiefroot.com/api/fruit/{fruit_chosen.lower()}")
             if response.status_code == 200:
-                st.write(f"**{fruit.title()}**")
-                st.dataframe(response.json(), use_container_width=True)
+                st.dataframe(data=response.json(), use_container_width=True)
             else:
-                st.warning(f"No data available for: {fruit}")
+                st.warning(f"No nutrition data available for: {fruit_chosen}")
         except Exception as e:
-            st.error(f"Failed to fetch data for {fruit}: {e}")
+            st.error(f"Failed to fetch data for {fruit_chosen}: {e}")
