@@ -40,14 +40,15 @@ if ingredients_list:
     # Convert ingredients list to SQL array format
 
 if st.button("Submit Order"):
-    ingredients_sql_array = "ARRAY_CONSTRUCT(" + ", ".join(f"'{item}'" for item in ingredients_list) + ")"
-    
-    session.sql(f"""
-        INSERT INTO SMOOTHIES.PUBLIC.ORDERS (name_on_order, ingredients)
-        VALUES ('{name_on_order}', {ingredients_sql_array})
-    """).collect()
-    
+    # Use Snowpark DataFrame API to insert safely
+    session.table("SMOOTHIES.PUBLIC.ORDERS").insert(
+        values={
+            "name_on_order": name_on_order,
+            "ingredients": session.sql(f"SELECT ARRAY_CONSTRUCT({', '.join(f'\'{item}\'' for item in ingredients_list)})").collect()[0][0]
+        }
+    )
     st.success(f"✅ Your Smoothie is ordered, {name_on_order}!")
+
 
     # # Submit button to place the order
     # if st.button("Submit Order"):
