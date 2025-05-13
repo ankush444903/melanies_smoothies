@@ -15,64 +15,53 @@ st.write("The name on your Smoothie will be:", name_on_order)
 cnx = st.connection("snowflake", type="snowflake")
 session = cnx.session()
 
-# Load fruit data with SEARCH_ON from Snowflake
-my_dataframe = session.table('SMOOTHIES.PUBLIC.FRUIT_OPTIONS').select(
+# Load fruit data from Snowflake
+fruit_df = session.table('SMOOTHIES.PUBLIC.FRUIT_OPTIONS').select(
     col('FRUIT_NAME'), col('SEARCH_ON')
-)
-
-# Convert Snowpark DataFrame to Pandas
-pd_df = my_dataframe.to_pandas()
+).to_pandas()
 
 # Show fruit options in multiselect
-fruit_names = pd_df['FRUIT_NAME'].tolist()
+fruit_names = fruit_df['FRUIT_NAME'].tolist()
 ingredients_list = st.multiselect(
     'Choose up to 5 ingredients:',
     fruit_names,
     max_selections=5
 )
 
-# If user selected fruits
-if ingredients_list:
-    # Convert ingredients list to comma-separated string
-    ingredients_string = ', '.join(ingredients_list)
-
-    ####################
-    # Convert ingredients list to SQL array format
-
+# Only proceed if there are ingredients and a name
 if st.button("Submit Order"):
-    # Use Snowpark DataFrame API to insert safely
-    session.table("SMOOTHIES.PUBLIC.ORDERS").insert(
-        values={
+    if not name_on_order:
+        st.warning("Please enter your name to place an order.")
+    elif not ingredients_list:
+        st.warning("Please select at least one ingredient.")
+    else:
+        # Convert to SQL array using ARRAY_CONSTRUCT inside SELECT
+        array_construct_query = f"""
+            SELECT ARRAY_CONSTRUCT({', '.join(f"'{item}'" for item in ingredients_list)}) AS ingredients_array
+        """
+        ingredients_array = session.sql(array_construct_query).collect()[0]['INGREDIENTS_ARRAY']
+
+        # Insert using Snowpark API
+        session.table("SMOOTHIES.PUBLIC.ORDERS").insert({
             "name_on_order": name_on_order,
-            "ingredients": session.sql(f"SELECT ARRAY_CONSTRUCT({', '.join(f'\'{item}\'' for item in ingredients_list)})").collect()[0][0]
-        }
-    )
-    st.success(f"✅ Your Smoothie is ordered, {name_on_order}!")
+            "ingredients": ingredients_array
+        })
 
+        st.success(f"✅ Your Smoothie is ordered, {name_on_order}!")
 
-    # # Submit button to place the order
-    # if st.button("Submit Order"):
-    #     session.sql(f"""
-    #         INSERT INTO SMOOTHIES.PUBLIC.ORDERS (name_on_order, ingredients)
-    #         VALUES ('{name_on_order}', '{ingredients_string}')
-    #     """).collect()
-    #     st.success(f"✅ Your Smoothie is ordered, {name_on_order}!")
+        # Show nutritional info
+        st.subheader("🍓 Nutritional Info from Fruityvice API")
+        for fruit in ingredients_list:
+            st.subheader(f"{fruit} Nutrition Information")
 
-    # Show nutrition information from fruityvice
-    st.subheader("🍓 Nutritional Info from Fruityvice API")
-    for fruit_chosen in ingredients_list:
-        st.subheader(f"{fruit_chosen} Nutrition Information")
+            try:
+                search_on = fruit_df.loc[fruit_df['FRUIT_NAME'] == fruit, 'SEARCH_ON'].iloc[0]
+                api_fruit_name = search_on.lower().replace(" ", "%20")
 
-        # Get the 'SEARCH_ON' value for API call
-        try:
-            search_on = pd_df.loc[pd_df['FRUIT_NAME'] == fruit_chosen, 'SEARCH_ON'].iloc[0]
-            api_fruit_name = search_on.lower().replace(" ", "%20")
-
-            response = requests.get(f"https://fruityvice.com/api/fruit/{api_fruit_name}")
-
-            if response.status_code == 200:
-                st.dataframe(data=response.json(), use_container_width=True)
-            else:
-                st.warning(f"No nutrition data available for: {fruit_chosen}")
-        except Exception as e:
-            st.error(f"Error fetching Fruityvice data for {fruit_chosen}: {e}")
+                response = requests.get(f"https://fruityvice.com/api/fruit/{api_fruit_name}")
+                if response.status_code == 200:
+                    st.dataframe(data=response.json(), use_container_width=True)
+                else:
+                    st.warning(f"No nutrition data available for: {fruit}")
+            except Exception as e:
+                st.error(f"Error fetching data for {fruit}: {e}")
