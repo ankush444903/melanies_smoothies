@@ -36,13 +36,25 @@ if ingredients_list:
     # Convert ingredients list to comma-separated string
     ingredients_string = ', '.join(ingredients_list)
 
-    # Submit button to place the order
+    ####################
+    # Convert ingredients list to SQL array format
+ingredients_sql_array = "ARRAY_CONSTRUCT(" + ", ".join(f"'{item}'" for item in ingredients_list) + ")"
+
+# Submit button to place the order
     if st.button("Submit Order"):
         session.sql(f"""
             INSERT INTO SMOOTHIES.PUBLIC.ORDERS (name_on_order, ingredients)
-            VALUES ('{name_on_order}', '{ingredients_string}')
+            VALUES ('{name_on_order}', {ingredients_sql_array})
         """).collect()
         st.success(f"✅ Your Smoothie is ordered, {name_on_order}!")
+
+    # # Submit button to place the order
+    # if st.button("Submit Order"):
+    #     session.sql(f"""
+    #         INSERT INTO SMOOTHIES.PUBLIC.ORDERS (name_on_order, ingredients)
+    #         VALUES ('{name_on_order}', '{ingredients_string}')
+    #     """).collect()
+    #     st.success(f"✅ Your Smoothie is ordered, {name_on_order}!")
 
     # Show nutrition information from fruityvice
     st.subheader("🍓 Nutritional Info from Fruityvice API")
