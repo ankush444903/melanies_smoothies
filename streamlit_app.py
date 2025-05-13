@@ -3,24 +3,24 @@ import streamlit as st
 import requests
 from snowflake.snowpark.functions import col
 
-# App title and instructions
+# App title and input
 st.title("🥤 My Parents' New Healthy Diner! 🥤")
 st.write("Choose the fruits you want in your custom Smoothie!")
 
-# Name on smoothie input
+# Name input
 name_on_order = st.text_input("Name on Smoothie:")
 st.write("The name on your Smoothie will be:", name_on_order)
 
-# Create connection using Streamlit's native connection manager
+# Snowflake connection
 cnx = st.connection("snowflake", type="snowflake")
 session = cnx.session()
 
-# Load fruit data from Snowflake
+# Load fruit data
 fruit_df = session.table('SMOOTHIES.PUBLIC.FRUIT_OPTIONS').select(
     col('FRUIT_NAME'), col('SEARCH_ON')
 ).to_pandas()
 
-# Show fruit options in multiselect
+# Multiselect options
 fruit_names = fruit_df['FRUIT_NAME'].tolist()
 ingredients_list = st.multiselect(
     'Choose up to 5 ingredients:',
@@ -28,32 +28,28 @@ ingredients_list = st.multiselect(
     max_selections=5
 )
 
-# Only proceed if there are ingredients and a name
+# Submit order
 if st.button("Submit Order"):
     if not name_on_order:
         st.warning("Please enter your name to place an order.")
     elif not ingredients_list:
         st.warning("Please select at least one ingredient.")
     else:
-        # Convert to SQL array using ARRAY_CONSTRUCT inside SELECT
-        array_construct_query = f"""
-            SELECT ARRAY_CONSTRUCT({', '.join(f"'{item}'" for item in ingredients_list)}) AS ingredients_array
-        """
-        ingredients_array = session.sql(array_construct_query).collect()[0]['INGREDIENTS_ARRAY']
+        # Convert selected fruits to a SQL-compatible array string
+        ingredients_sql_array = ",".join(f"'{item}'" for item in ingredients_list)
 
-        # Insert using Snowpark API
-        session.table("SMOOTHIES.PUBLIC.ORDERS").insert({
-            "name_on_order": name_on_order,
-            "ingredients": ingredients_array
-        })
+        insert_sql = f"""
+            INSERT INTO SMOOTHIES.PUBLIC.ORDERS (name_on_order, ingredients)
+            SELECT '{name_on_order}' AS name_on_order, ARRAY_CONSTRUCT({ingredients_sql_array}) AS ingredients
+        """
+        session.sql(insert_sql).collect()  # Run the SQL
 
         st.success(f"✅ Your Smoothie is ordered, {name_on_order}!")
 
-        # Show nutritional info
+        # Show nutrition info
         st.subheader("🍓 Nutritional Info from Fruityvice API")
         for fruit in ingredients_list:
             st.subheader(f"{fruit} Nutrition Information")
-
             try:
                 search_on = fruit_df.loc[fruit_df['FRUIT_NAME'] == fruit, 'SEARCH_ON'].iloc[0]
                 api_fruit_name = search_on.lower().replace(" ", "%20")
